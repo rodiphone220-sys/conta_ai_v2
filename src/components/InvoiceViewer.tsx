@@ -59,7 +59,7 @@ export function InvoiceViewer({ invoice, onClose }: InvoiceViewerProps) {
               <div className="space-y-4">
                 <div className="w-24 h-24 bg-brand-light rounded-2xl flex items-center justify-center overflow-hidden p-2 border border-brand-dark/5">
                   <img 
-                    src="https://i.ibb.co/v4Xz1rM/logo-conta-ai.png" 
+                    src="/logo-conta-ai.svg" 
                     alt="Logo" 
                     className="w-full h-full object-contain"
                     referrerPolicy="no-referrer"

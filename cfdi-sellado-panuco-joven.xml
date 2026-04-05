@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante 
+  xmlns:cfdi="http://www.sat.gob.mx/cfd/4" 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+  xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd" 
+  Version="4.0" 
+  Serie="F" 
+  Folio="0000000001" 
+  Fecha="2026-04-01T12:30:00" 
+  Sello="ykMTAWqo9LisehpdFKeL6ytlIH0KAV1c3B1xK/4w6EEnrZ67iyXO77nend3w1ihZWocT24OTODrE2KQ63N5VtQp1iTPOu+H3+KX9nBRmGNhOSd1tW6bErPMt3Ieg28qTn20KqYyDRxpqYsImFvmKvIHdnBSEZfKIwk4L9NUq4Ere/vonGqithZnm04JkYTE+NEk3PmPcGIrRzQcFvQTrGKhbeH37GwDbGLPFUDYS7xPjOIn6Slo2wOH+4uaLUTvrKi/ATUc2z8UE4LSlRy6ibAfNvb8xeGfLfWc/S2OGXw9z2MSShJfaP0gxXYGzgPRsRe2GsXecoKPw9fWERAIPBg==" 
+  FormaPago="03" 
+  NoCertificado="02" 
+  Certificado="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" 
+  SubTotal="3500" 
+  Total="4060" 
+  TipoDeComprobante="I" 
+  Exportacion="01" 
+  LugarExpedicion="42501" 
+  MetodoPago="PUE" 
+  Moneda="MXN">
+  
+  <cfdi:Emisor 
+    Rfc="EKU9003173C9" 
+    Nombre="ESCUELA KEMPER URGATE" 
+    RegimenFiscal="601">
+    <cfdi:DomicilioFiscal 
+      Calle="Calle Ejemplo" 
+      NumeroExterior="123" 
+      Colonia="Colonia Ejemplo" 
+      Ciudad="Ciudad de Mexico" 
+      Estado="CDMX" 
+      Pais="México" 
+      CodigoPostal="42501"/>
+  </cfdi:Emisor>
+  
+  <cfdi:Receptor 
+    Rfc="RGO810620KC3" 
+    Nombre="RODOLFO GARCIA ORTIZ" 
+    UsoCFDI="G03">
+    <cfdi:Domicilio 
+      Calle="Callejon Rio Purificacion" 
+      NumeroExterior="SN" 
+      Colonia="Purisima de Aconchi" 
+      Ciudad="Hermosillo" 
+      Estado="SONORA" 
+      Pais="México" 
+      CodigoPostal="83150"/>
+  </cfdi:Receptor>
+  
+  <cfdi:Conceptos>
+    
+    <cfdi:Concepto 
+      ClaveProdServ="84111500" 
+      ClaveUnidad="E48" 
+      Cantidad="1" 
+      Unidad="SERVICIO" 
+      Descripcion="Servicio de ambientación musical" 
+      ValorUnitario="3500.00" 
+      Importe="3500.00"
+      ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado 
+            Base="3500.00" 
+            Impuesto="002" 
+            TipoFactor="Tasa" 
+            TasaOCuota="0.160000" 
+            Importe="560.00"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+  
+  </cfdi:Conceptos>
+  
+  <cfdi:Impuestos TotalImpuestosTrasladados="560">
+    <cfdi:Traslados>
+      <cfdi:Traslado 
+        Base="3500" 
+        Impuesto="002" 
+        TipoFactor="Tasa" 
+        TasaOCuota="0.160000" 
+        Importe="560"/>
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+</cfdi:Comprobante>

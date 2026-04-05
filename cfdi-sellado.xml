@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante 
+  xmlns:cfdi="http://www.sat.gob.mx/cfd/4" 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+  xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd" 
+  Version="4.0" 
+  Serie="A" 
+  Folio="614377" 
+  Fecha="2026-04-01T01:06:54" 
+  Sello="V4PA0VsSoWaGdF07UfTGPz5lGPvGBS6YuPsKRwI7m2/5e04qofou3yC76PYyavLcuHsTJadSLa1ktc9+HPMhqLkuanW6VXo5H6oXCoNxRozq28n46UPJxoKu92Gi1So9ieqrDFTp8R5HOmbXoCgpQwSCvXZ+RBywerueUgMQKMZlgDKgK0WnpGQylmkAEmDd8w2dZz9JY9LDUETybU4asCKN7rH8U5I0dX/FB/XANkoMM6WFWG2PYAfJihU/0YcTEsjNKkVmKbMQjSTI26DSrA+BxVQJkkddvKVsPXcZGF8hFojZvbqBKjhYKuZ5/zSfslijc1WRPXBFgi//mnZ5ag==" 
+  FormaPago="03" 
+  NoCertificado="00001000000518570370" 
+  Certificado="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" 
+  SubTotal="862.07" 
+  Total="1000.00" 
+  TipoDeComprobante="I" 
+  Exportacion="01" 
+  LugarExpedicion="79140" 
+  MetodoPago="PUE" 
+  TipoCambio="1" 
+  Moneda="MXN">
+  
+  <cfdi:Emisor 
+    Rfc="GUIM980220L20" 
+    Nombre="MARIO ALBERTO GUERRERO IBARRA" 
+    RegimenFiscal="626"/>
+  
+  <cfdi:Receptor 
+    Rfc="VIPE9401251Z5" 
+    Nombre="ESMERALDA VICENCIO PADRON" 
+    DomicilioFiscalReceptor="32320" 
+    RegimenFiscalReceptor="612" 
+    UsoCFDI="G03"/>
+  
+  <cfdi:Conceptos>
+    <cfdi:Concepto 
+      ClaveProdServ="84111500" 
+      ClaveUnidad="E48" 
+      Cantidad="1" 
+      Unidad="SERVICIO" 
+      NoIdentificacion="SER004" 
+      Descripcion="HONORARIOS CONTABLES" 
+      ValorUnitario="862.07" 
+      Importe="862.07" 
+      ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado 
+            Base="862.07" 
+            Impuesto="002" 
+            TipoFactor="Tasa" 
+            TasaOCuota="0.160000" 
+            Importe="137.93"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+  </cfdi:Conceptos>
+  
+  <cfdi:Impuestos TotalImpuestosTrasladados="137.93">
+    <cfdi:Traslados>
+      <cfdi:Traslado 
+        Base="862.07" 
+        Impuesto="002" 
+        TipoFactor="Tasa" 
+        TasaOCuota="0.160000" 
+        Importe="137.93"/>
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+</cfdi:Comprobante>

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(solucionfactible.com)",
+      "Bash(curl *)",
+      "Bash(node *)",
+      "Bash(timeout *)",
+      "Bash(npx *)",
+      "Bash(tasklist)",
+      "Bash(findstr *)",
+      "Bash(netstat *)",
+      "Bash(select-object *)",
+      "Bash(select-string *)",
+      "Bash(npm install *)",
+      "Bash(start *)",
+      "Bash(type *)",
+      "Bash(ollama *)",
+      "Bash(cd *)",
+      "Bash(setx *)",
+      "Bash(cmd *)"
+    ]
+  },
+  "$version": 3
+}

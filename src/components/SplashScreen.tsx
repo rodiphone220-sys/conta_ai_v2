@@ -20,7 +20,7 @@ export function SplashScreen() {
             className="w-32 h-32 bg-white rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.2)] overflow-hidden p-2"
           >
             <img 
-              src="https://i.ibb.co/v4Xz1rM/logo-conta-ai.png" 
+              src="/logo-conta-ai.svg" 
               alt="My Conta-AI Logo" 
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"

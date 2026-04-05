@@ -1,32 +1,40 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { MessageSquare, X, Send, Bot, User, Loader2, Sparkles } from "lucide-react";
-import { GoogleGenAI } from "@google/genai";
-
-const SYSTEM_INSTRUCTION = `Eres "My Conta Ai", un asistente experto en facturación electrónica en México (CFDI 4.0) y regulaciones del SAT. 
-Tu objetivo es:
-1. Ayudar al usuario a entender cómo usar la aplicación My Conta Ai.
-2. Explicar conceptos fiscales como el RFC, regímenes fiscales (RESICO, Personas Físicas con Actividad Empresarial, Sueldos y Salarios, etc.).
-3. Resolver dudas sobre impuestos (IVA, ISR, retenciones).
-4. Guiar al usuario en sus deberes fiscales básicos.
-5. Ayudar en el proceso de creación de facturas (explicar qué es un PUE, PPD, formas de pago, etc.).
-
-Sé amable, profesional y conciso. Usa un lenguaje claro para personas que no son expertas en contabilidad. 
-Si el usuario pregunta algo muy complejo o legalmente delicado, sugiere siempre consultar a un contador profesional.
-No inventes leyes; si no estás seguro de un cambio reciente en el SAT, menciónalo.`;
+import { MessageSquare, X, Send, Bot, Loader2, AlertCircle } from "lucide-react";
 
 interface Message {
   role: "user" | "model";
   text: string;
 }
 
-export function AIAssistant() {
+interface AIAssistantProps {
+  currentView?: string;
+  stats?: {
+    total?: string;
+    emitidas?: number;
+    clientes?: number;
+  };
+  userRegimen?: string;
+  onNavigate?: (view: string) => void;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+type OllamaStatus = "checking" | "online" | "offline";
+
+export function AIAssistant({
+  currentView = "dashboard",
+  stats = { total: "124500.00", emitidas: 48, clientes: 12 },
+  userRegimen = "612",
+  onNavigate
+}: AIAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { role: "model", text: "¡Hola! Soy tu asistente de My Conta Ai. ¿En qué puedo ayudarte hoy con tus facturas o dudas del SAT?" }
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus>("checking");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -37,6 +45,55 @@ export function AIAssistant() {
     scrollToBottom();
   }, [messages]);
 
+  // Detectar navegación automática en la respuesta de la IA
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === "model") {
+      const navMatch = lastMessage.text.match(/\[NAV:(\w+)\]/);
+      if (navMatch && onNavigate) {
+        const targetView = navMatch[1];
+        console.log("[AI Navigator] Navegando a:", targetView);
+        onNavigate(targetView);
+        // Remover el tag de navegación del mensaje visible
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const lastIdx = newMessages.length - 1;
+          newMessages[lastIdx] = {
+            ...newMessages[lastIdx],
+            text: newMessages[lastIdx].text.replace(/\s*\[NAV:\w+\]\s*/, "")
+          };
+          return newMessages;
+        });
+      }
+    }
+  }, [messages, onNavigate]);
+
+  useEffect(() => {
+    checkOllamaStatus();
+    const interval = setInterval(checkOllamaStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const checkOllamaStatus = async () => {
+    try {
+      const url = `${API_URL}/api/ollama/status`;
+      console.log('[AI] Checking Ollama status at:', url);
+      const response = await fetch(url);
+      console.log('[AI] Ollama status response:', response.status, response.ok);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[AI] Ollama data:', data);
+        setOllamaStatus(data.available ? "online" : "offline");
+      } else {
+        console.log('[AI] Response not ok, setting offline');
+        setOllamaStatus("offline");
+      }
+    } catch (err) {
+      console.error('[AI] Error checking Ollama status:', err);
+      setOllamaStatus("offline");
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -46,23 +103,39 @@ export function AIAssistant() {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          ...messages.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
-          { role: "user", parts: [{ text: userMessage }] }
-        ],
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-        }
+      const conversationHistory = [...messages];
+      conversationHistory.push({ role: "user", text: userMessage });
+
+      // Enviar contexto vivo al backend
+      const response = await fetch(`${API_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: conversationHistory,
+          context: {
+            currentView,
+            stats,
+            user_regimen: userRegimen
+          }
+        })
       });
 
-      const aiText = response.text || "Lo siento, no pude procesar tu solicitud.";
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.details || `API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const aiText = data.text || "Lo siento, no pude procesar tu solicitud.";
       setMessages(prev => [...prev, { role: "model", text: aiText }]);
-    } catch (error) {
+      setOllamaStatus("online");
+    } catch (error: any) {
       console.error("AI Error:", error);
-      setMessages(prev => [...prev, { role: "model", text: "Hubo un error al conectar con el asistente. Por favor, intenta de nuevo más tarde." }]);
+      setOllamaStatus("offline");
+      setMessages(prev => [...prev, {
+        role: "model",
+        text: "El asistente no está disponible. Asegúrate de que Ollama esté instalado y ejecutándose en tu computadora."
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -87,18 +160,43 @@ export function AIAssistant() {
                 <div>
                   <h3 className="font-display font-bold text-sm">My Conta Ai</h3>
                   <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[10px] text-white/60 uppercase tracking-widest font-bold">En línea</span>
+                    {ollamaStatus === "checking" && (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin text-white/60" />
+                        <span className="text-[10px] text-white/60 uppercase tracking-widest font-bold">Verificando...</span>
+                      </>
+                    )}
+                    {ollamaStatus === "online" && (
+                      <>
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                        <span className="text-[10px] text-white/60 uppercase tracking-widest font-bold">En línea</span>
+                      </>
+                    )}
+                    {ollamaStatus === "offline" && (
+                      <>
+                        <div className="w-2 h-2 bg-red-500 rounded-full" />
+                        <span className="text-[10px] text-white/60 uppercase tracking-widest font-bold">Ollama Apagado</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setIsOpen(false)}
                 className="p-2 hover:bg-white/10 rounded-full transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {ollamaStatus === "offline" && (
+              <div className="px-4 py-2 bg-amber-500/20 border-b border-amber-500/30">
+                <div className="flex items-center gap-2 text-amber-200 text-xs">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Ollama no está disponible.</span>
+                </div>
+              </div>
+            )}
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
@@ -109,11 +207,10 @@ export function AIAssistant() {
                   animate={{ opacity: 1, x: 0 }}
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
-                    msg.role === "user" 
-                      ? "bg-brand-primary text-white rounded-tr-none" 
-                      : "bg-brand-light text-brand-dark rounded-tl-none border border-brand-primary/10"
-                  }`}>
+                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${msg.role === "user"
+                    ? "bg-brand-primary text-white rounded-tr-none"
+                    : "bg-brand-light text-brand-dark rounded-tl-none border border-brand-primary/10"
+                    }`}>
                     {msg.text}
                   </div>
                 </motion.div>

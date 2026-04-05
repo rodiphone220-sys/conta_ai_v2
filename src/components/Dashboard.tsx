@@ -1,43 +1,271 @@
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  FileText, 
-  TrendingUp, 
-  Users, 
-  Settings, 
-  LogOut, 
+import {
+  Plus,
+  Search,
+  Filter,
+  FileText,
+  TrendingUp,
+  Users,
+  Settings,
+  LogOut,
   Bell,
   ArrowUpRight,
   ArrowDownRight,
-  MoreVertical,
   Download,
   Eye,
   Trash2,
+  Sparkles,
   X,
-  Sparkles
+  Save,
+  Loader2,
+  MapPin,
+  Mail,
+  Phone,
+  Building,
+  Shield,
+  ChevronRight,
+  Clock
 } from "lucide-react";
-import { useState, FormEvent } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import { InvoiceViewer } from "./InvoiceViewer";
 import { RegimeWizard } from "./RegimeWizard";
+import { ClientsPage } from "./ClientsPage";
+import { PACSettings } from "./PACSettings";
+import { PendingInvoices } from "./PendingInvoices";
+import { ScanLine, Percent } from "lucide-react";
+import { OCRScannerPage } from "../pages/OCRScannerPage";
+import { IVATabulatorPage } from "../pages/IVATabulatorPage";
+import { REGIMENES_FISCALES as REGIMENES_FISCALES_CONST } from "../constants";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+interface CompanyData {
+  Nombre: string;
+  RFC: string;
+  Calle: string;
+  NumeroExt: string;
+  NumeroInt: string;
+  Colonia: string;
+  Municipio: string;
+  Estado: string;
+  Pais: string;
+  CP: string;
+  Email: string;
+  Telefono: string;
+  RegimenFiscal: string;
+  Certificado: string;
+  LlavePrivada: string;
+}
 
 interface DashboardProps {
   onNewInvoice: () => void;
   onLogout: () => void;
 }
 
+// Map REGIMENES_FISCALES from constants (code/description) to Dashboard format (clave/descripcion)
+const REGIMENES_FISCALES = REGIMENES_FISCALES_CONST.map(r => ({
+  clave: r.code,
+  descripcion: r.description
+}));
+
+// Helper: obtener descripción completa desde la clave
+const getRegimenLabel = (clave: string) => {
+  const found = REGIMENES_FISCALES.find(r => r.clave === clave);
+  return found ? `${found.clave} - ${found.descripcion}` : clave || "Sin definir";
+};
+
+const initialCompanyData: CompanyData = {
+  Nombre: "",
+  RFC: "",
+  Calle: "",
+  NumeroExt: "",
+  NumeroInt: "",
+  Colonia: "",
+  Municipio: "",
+  Estado: "",
+  Pais: "México",
+  CP: "",
+  Email: "",
+  Telefono: "",
+  RegimenFiscal: "",
+  Certificado: "",
+  LlavePrivada: "",
+};
+
 export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
-  const [currentView, setCurrentView] = useState<"dashboard" | "invoices" | "clients" | "settings">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "invoices" | "clients" | "settings" | "pac" | "pending" | "ocr-scanner" | "iva-tabulator">(
+    "dashboard"
+  );
   const [searchQuery, setSearchQuery] = useState("");
-  const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [hasNotifications, setHasNotifications] = useState(true);
   const [showRegimeWizard, setShowRegimeWizard] = useState(false);
-  const [userRegime, setUserRegime] = useState("601 - General de Ley Personas Morales");
-  const [userName, setUserName] = useState("MI EMPRESA S.A. DE C.V.");
+  const [companyData, setCompanyData] = useState<CompanyData>(initialCompanyData);
+  const [savingCompany, setSavingCompany] = useState(false);
+  const [loadingCompany, setLoadingCompany] = useState(false);
+  const [pacConfigured, setPacConfigured] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [totalFacturado, setTotalFacturado] = useState<string>("$0.00");
+  const [clientesActivos, setClientesActivos] = useState<number>(0);
+  const [facturasEmitidas, setFacturasEmitidas] = useState<number>(0);
+
+  // Escuchar evento de navegación desde IA
+  useEffect(() => {
+    const handleAINavigate = (event: CustomEvent<{ view: string }>) => {
+      const { view } = event.detail;
+      if (['dashboard', 'invoices', 'clients', 'settings', 'pac', 'pending'].includes(view)) {
+        setCurrentView(view as any);
+      }
+    };
+
+    window.addEventListener('ai-navigate' as any, handleAINavigate as any);
+    return () => window.removeEventListener('ai-navigate' as any, handleAINavigate as any);
+  }, []);
+
+  useEffect(() => {
+    fetchCompanyData();
+    fetchPacConfig();
+  }, []);
+
+  const fetchPacConfig = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/pac/config`);
+      const data = await response.json();
+      setPacConfigured(data.configured);
+    } catch (error) {
+      console.error('Error fetching PAC config:', error);
+    }
+  };
+
+  const fetchPendingCount = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/pending-invoices`);
+      const data = await response.json();
+      setPendingCount(data?.length || 0);
+    } catch (error) {
+      console.error('Error fetching pending count:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingCount();
+    fetchDashboardStats();
+  }, [currentView]);
+
+  const fetchDashboardStats = async () => {
+    try {
+      // Cargar clientes
+      const clientsResponse = await fetch(`${API_URL}/api/clients`);
+      if (clientsResponse.ok) {
+        const clients = await clientsResponse.json();
+        setClientesActivos(clients.length);
+      }
+
+      // Cargar facturas timbradas
+      const invoicesResponse = await fetch(`${API_URL}/api/invoices`);
+      if (invoicesResponse.ok) {
+        const invoices = await invoicesResponse.json();
+        setFacturasEmitidas(invoices.length);
+
+        // Calcular total facturado
+        const total = invoices.reduce((sum: number, inv: any) => {
+          return sum + (inv.Total || inv.total || 0);
+        }, 0);
+        setTotalFacturado(`$${total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      // Mantener los valores por defecto en caso de error
+    }
+  };
+
+  const fetchCompanyData = async () => {
+    setLoadingCompany(true);
+    try {
+      const response = await fetch(`${API_URL}/api/company`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && Object.keys(data).length > 0) {
+          setCompanyData({
+            Nombre: data.Nombre || data.nombre || "",
+            RFC: data.RFC || data.rfc || "",
+            Calle: data.Calle || data.calle || "",
+            NumeroExt: data.NumeroExt || data.numeroExt || "",
+            NumeroInt: data.NumeroInt || data.numeroInt || "",
+            Colonia: data.Colonia || data.colonia || "",
+            Municipio: data.Municipio || data.municipio || "",
+            Estado: data.Estado || data.estado || "",
+            Pais: data.Pais || data.pais || "México",
+            CP: data.CP || data.cp || "",
+            Email: data.Email || data.email || "",
+            Telefono: data.Telefono || data.telefono || "",
+            RegimenFiscal: data.RegimenFiscal || data.regimenFiscal || "",
+            Certificado: data.Certificado || "",
+            LlavePrivada: data.LlavePrivada || "",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching company data:", error);
+    } finally {
+      setLoadingCompany(false);
+    }
+  };
+
+  const handleCompanyChange = (field: keyof CompanyData, value: string) => {
+    setCompanyData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveCompany = async () => {
+    if (!companyData.RFC || companyData.RFC.length < 12) {
+      toast.error("RFC inválido", {
+        description: "El RFC debe tener al menos 12 caracteres",
+      });
+      return;
+    }
+
+    if (!companyData.Nombre) {
+      toast.error("Nombre requerido", {
+        description: "Ingresa el nombre o razón social",
+      });
+      return;
+    }
+
+    setSavingCompany(true);
+    try {
+      const response = await fetch(`${API_URL}/api/company`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(companyData),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const actionText = result.action === 'created' ? 'registrados' : 'actualizados';
+        toast.success("Datos guardados", {
+          description: `La información del emisor se ha ${actionText} correctamente.`,
+        });
+      } else if (response.status === 409) {
+        // Error de duplicado
+        const error = await response.json();
+        toast.error("Datos duplicados", {
+          description: error.error || "Este RFC o email ya está registrado con otro usuario.",
+          duration: 5000,
+        });
+      } else {
+        throw new Error("Error saving");
+      }
+    } catch (error) {
+      console.error("Error saving company data:", error);
+      toast.error("Error al guardar", {
+        description: "No se pudieron guardar los datos. Inténtalo de nuevo.",
+      });
+    } finally {
+      setSavingCompany(false);
+    }
+  };
 
   const handleDownload = (id: string) => {
     toast.info(`Descargando factura ${id}...`, {
@@ -46,18 +274,13 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
   };
 
   const handleViewInvoice = (id: string) => {
-    let invoice = recentInvoices.find(inv => inv.id === id);
-    
-    if (!invoice) {
-      const client = clients.find(c => c.rfc === id);
-      invoice = {
-        id: `F-DEMO-${Math.floor(Math.random() * 1000)}`,
-        client: client ? client.name : "Cliente Demo",
-        date: new Date().toISOString().split('T')[0],
-        amount: "$1,500.00",
-        status: "Pagada"
-      };
-    }
+    const invoice = recentInvoices.find(inv => inv.id === id) || {
+      id: `F-DEMO-${Math.floor(Math.random() * 1000)}`,
+      client: "Cliente Demo",
+      date: new Date().toISOString().split('T')[0],
+      amount: "$1,500.00",
+      status: "Pagada"
+    };
 
     setSelectedInvoice(invoice);
     toast.success(`Abriendo visor para ${id}`, {
@@ -75,22 +298,8 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
     });
   };
 
-  const handleSaveSettings = () => {
-    toast.success("Configuración guardada", {
-      description: "Los datos del emisor han sido actualizados correctamente.",
-    });
-  };
-
-  const handleAddClient = (e: FormEvent) => {
-    e.preventDefault();
-    setShowNewClientModal(false);
-    toast.success("Cliente agregado", {
-      description: "El nuevo receptor ha sido registrado en tu catálogo.",
-    });
-  };
-
   const handleRegimeComplete = (regime: string) => {
-    setUserRegime(regime);
+    setCompanyData(prev => ({ ...prev, RegimenFiscal: regime }));
     setShowRegimeWizard(false);
     toast.success("Régimen Actualizado", {
       description: `Se ha definido tu régimen como: ${regime}`,
@@ -99,25 +308,13 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
   };
 
   const stats = [
-    { label: "Total Facturado", value: "$124,500.00", change: "+12.5%", isUp: true, icon: TrendingUp, color: "bg-emerald-500", onClick: () => setCurrentView("dashboard") },
-    { label: "Facturas Emitidas", value: "48", change: "+5", isUp: true, icon: FileText, color: "bg-brand-primary", onClick: () => setCurrentView("invoices") },
-    { label: "Clientes Activos", value: "12", change: "-2", isUp: false, icon: Users, color: "bg-brand-gold", onClick: () => setCurrentView("clients") },
+    { label: "Total Facturado", value: totalFacturado, change: "", isUp: true, icon: TrendingUp, color: "bg-emerald-500", onClick: () => setCurrentView("dashboard") },
+    { label: "Facturas Emitidas", value: String(facturasEmitidas), change: "", isUp: true, icon: FileText, color: "bg-brand-primary", onClick: () => setCurrentView("dashboard") },
+    { label: "Clientes Activos", value: String(clientesActivos), change: "", isUp: false, icon: Users, color: "bg-brand-gold", onClick: () => setCurrentView("clients") },
   ];
 
-  const recentInvoices = [
-    { id: "F-1024", client: "Empresa ABC S.A. de C.V.", date: "2024-03-28", amount: "$12,400.00", status: "Pagada" },
-    { id: "F-1023", client: "Juan Pérez García", date: "2024-03-27", amount: "$3,500.00", status: "Pendiente" },
-    { id: "F-1022", client: "Tecnología Avanzada", date: "2024-03-25", amount: "$45,000.00", status: "Cancelada" },
-    { id: "F-1021", client: "Servicios Logísticos", date: "2024-03-24", amount: "$8,200.00", status: "Pagada" },
-    { id: "F-1020", client: "Consultoría Global", date: "2024-03-22", amount: "$15,000.00", status: "Pagada" },
-    { id: "F-1019", client: "Tienda Local", date: "2024-03-20", amount: "$1,200.00", status: "Pendiente" },
-  ];
-
-  const clients = [
-    { name: "Empresa ABC S.A. de C.V.", rfc: "ABC123456T1", email: "contacto@abc.com", status: "Activo" },
-    { name: "Juan Pérez García", rfc: "PEGA800101H1", email: "juan@gmail.com", status: "Activo" },
-    { name: "Tecnología Avanzada", rfc: "TAN901010K2", email: "info@tech.mx", status: "Inactivo" },
-  ];
+  interface Invoice { id: string; client: string; date: string; amount: string; status: string; }
+  const recentInvoices: Invoice[] = []; // TODO: Cargar facturas reales desde localStorage/API
 
   return (
     <div className="min-h-screen bg-brand-light flex overflow-x-hidden">
@@ -125,45 +322,55 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
       <aside className="hidden lg:flex w-72 bg-brand-dark text-white p-8 flex-col fixed h-full z-20">
         <div className="flex items-center gap-3 mb-12">
           <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center overflow-hidden p-1 shadow-lg">
-            <img 
-              src="https://i.ibb.co/v4Xz1rM/logo-conta-ai.png" 
-              alt="Logo" 
+            <img
+              src="/logo-conta-ai.svg"
+              alt="Logo"
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"
             />
           </div>
           <h1 className="text-xl font-display font-bold tracking-tight">My Conta-AI</h1>
         </div>
-        
+
         <nav className="flex-1 space-y-2">
-          <SidebarItem 
-            icon={TrendingUp} 
-            label="Dashboard" 
-            active={currentView === "dashboard"} 
+          <SidebarItem
+            icon={TrendingUp}
+            label="Dashboard"
+            active={currentView === "dashboard"}
             onClick={() => setCurrentView("dashboard")}
           />
-          <SidebarItem 
-            icon={FileText} 
-            label="Facturas" 
-            active={currentView === "invoices"} 
+          {/* SIDEBAR FACTURAS DESHABILITADO - Vista de historial pendiente */}
+          {/*
+          <SidebarItem
+            icon={FileText}
+            label="Facturas"
+            active={currentView === "invoices"}
             onClick={() => setCurrentView("invoices")}
           />
-          <SidebarItem 
-            icon={Users} 
-            label="Clientes" 
-            active={currentView === "clients"} 
+          */}
+          <SidebarItem
+            icon={Clock}
+            label="Pendientes"
+            active={currentView === "pending"}
+            onClick={() => setCurrentView("pending")}
+            badge={pendingCount > 0 ? pendingCount : undefined}
+          />
+          <SidebarItem
+            icon={Users}
+            label="Clientes"
+            active={currentView === "clients"}
             onClick={() => setCurrentView("clients")}
           />
-          <SidebarItem 
-            icon={Settings} 
-            label="Configuración" 
-            active={currentView === "settings"} 
+          <SidebarItem
+            icon={Settings}
+            label="Configuración"
+            active={currentView === "settings"}
             onClick={() => setCurrentView("settings")}
           />
         </nav>
-        
+
         <div className="pt-8 border-t border-white/10">
-          <button 
+          <button
             onClick={onLogout}
             className="flex items-center gap-3 text-white/60 hover:text-white transition-colors w-full px-4 py-3 rounded-xl hover:bg-white/5"
           >
@@ -177,7 +384,7 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-brand-dark text-white p-4 flex justify-around items-center z-30 border-t border-white/10 backdrop-blur-lg bg-brand-dark/90">
         <MobileNavItem icon={TrendingUp} active={currentView === "dashboard"} onClick={() => setCurrentView("dashboard")} />
         <MobileNavItem icon={FileText} active={currentView === "invoices"} onClick={() => setCurrentView("invoices")} />
-        <button 
+        <button
           onClick={onNewInvoice}
           className="w-14 h-14 bg-brand-primary text-white rounded-2xl flex items-center justify-center shadow-lg -translate-y-6 border-4 border-brand-light active:scale-90 transition-transform"
         >
@@ -186,7 +393,7 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
         <MobileNavItem icon={Users} active={currentView === "clients"} onClick={() => setCurrentView("clients")} />
         <MobileNavItem icon={LogOut} onClick={onLogout} />
       </nav>
-      
+
       {/* Main Content */}
       <main className="flex-1 lg:ml-72 p-4 sm:p-6 lg:p-12 pb-32 lg:pb-12 w-full max-w-full overflow-x-hidden">
         {/* Header */}
@@ -194,9 +401,9 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3 lg:hidden">
               <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden p-1 shadow-md">
-                <img 
-                  src="https://i.ibb.co/v4Xz1rM/logo-conta-ai.png" 
-                  alt="Logo" 
+                <img
+                  src="/logo-conta-ai.svg"
+                  alt="Logo"
                   className="w-full h-full object-contain"
                   referrerPolicy="no-referrer"
                 />
@@ -218,9 +425,9 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4 w-full lg:w-auto">
-            <button 
+            <button
               onClick={() => {
                 setHasNotifications(false);
                 toast.info("No tienes notificaciones pendientes");
@@ -232,8 +439,8 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                 <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
               )}
             </button>
-            
-            <button 
+
+            <button
               onClick={onNewInvoice}
               className="hidden lg:flex bg-brand-primary text-white px-8 py-4 rounded-2xl font-bold items-center gap-3 shadow-3d hover-3d active:scale-95"
             >
@@ -242,7 +449,7 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
             </button>
           </div>
         </header>
-        
+
         <AnimatePresence mode="wait">
           {currentView === "dashboard" && (
             <motion.div
@@ -264,7 +471,7 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                     className="glass p-6 sm:p-8 rounded-[32px] shadow-3d hover-3d relative overflow-hidden group cursor-pointer"
                   >
                     <div className={cn("absolute top-0 right-0 w-32 h-32 rounded-full -translate-y-1/2 translate-x-1/2 opacity-10 blur-2xl transition-all group-hover:scale-150", stat.color)} />
-                    
+
                     <div className="flex justify-between items-start mb-6">
                       <div className={cn("w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shadow-lg", stat.color)}>
                         <stat.icon className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
@@ -277,7 +484,7 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                         {stat.change}
                       </div>
                     </div>
-                    
+
                     <h3 className="text-brand-dark/50 font-semibold text-xs sm:text-sm uppercase tracking-wider mb-1">{stat.label}</h3>
                     <p className="text-2xl sm:text-3xl font-display font-bold text-brand-dark">{stat.value}</p>
                   </motion.div>
@@ -286,7 +493,7 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
 
               {/* Quick Actions */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <button 
+                <button
                   onClick={onNewInvoice}
                   className="glass p-4 rounded-2xl shadow-sm hover-3d flex flex-col items-center gap-2 text-brand-primary group transition-all"
                 >
@@ -295,7 +502,25 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                   </div>
                   <span className="text-xs font-bold uppercase tracking-widest">Nueva Factura</span>
                 </button>
-                <button 
+                <button
+                  onClick={() => setCurrentView("ocr-scanner")}
+                  className="glass p-4 rounded-2xl shadow-sm hover-3d flex flex-col items-center gap-2 text-emerald-600 group transition-all"
+                >
+                  <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                    <ScanLine className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-bold uppercase tracking-widest">OCR Scanner</span>
+                </button>
+                <button
+                  onClick={() => setCurrentView("iva-tabulator")}
+                  className="glass p-4 rounded-2xl shadow-sm hover-3d flex flex-col items-center gap-2 text-brand-gold group transition-all"
+                >
+                  <div className="w-10 h-10 bg-brand-gold/20 rounded-xl flex items-center justify-center group-hover:bg-brand-gold group-hover:text-white transition-all">
+                    <Percent className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-bold uppercase tracking-widest">Tabulador IVA</span>
+                </button>
+                <button
                   onClick={() => setCurrentView("clients")}
                   className="glass p-4 rounded-2xl shadow-sm hover-3d flex flex-col items-center gap-2 text-brand-dark group transition-all"
                 >
@@ -304,38 +529,21 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                   </div>
                   <span className="text-xs font-bold uppercase tracking-widest">Clientes</span>
                 </button>
-                <button 
-                  onClick={() => setCurrentView("invoices")}
-                  className="glass p-4 rounded-2xl shadow-sm hover-3d flex flex-col items-center gap-2 text-brand-dark group transition-all"
-                >
-                  <div className="w-10 h-10 bg-brand-dark/5 rounded-xl flex items-center justify-center group-hover:bg-brand-dark group-hover:text-white transition-all">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <span className="text-xs font-bold uppercase tracking-widest">Historial</span>
-                </button>
-                <button 
-                  onClick={() => setCurrentView("settings")}
-                  className="glass p-4 rounded-2xl shadow-sm hover-3d flex flex-col items-center gap-2 text-brand-dark group transition-all"
-                >
-                  <div className="w-10 h-10 bg-brand-dark/5 rounded-xl flex items-center justify-center group-hover:bg-brand-dark group-hover:text-white transition-all">
-                    <Settings className="w-5 h-5" />
-                  </div>
-                  <span className="text-xs font-bold uppercase tracking-widest">Ajustes</span>
-                </button>
               </div>
-              
-              {/* Recent Invoices Preview */}
+
+              {/* SECCIÓN FACTURAS RECIENTES DESHABILITADA - Pendiente conectar a facturas reales */}
+              {/*
               <div className="glass rounded-[32px] sm:rounded-[40px] shadow-3d overflow-hidden">
                 <div className="p-6 lg:p-8 border-b border-brand-dark/5 flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white/50">
                   <h3 className="text-xl font-display font-bold text-brand-dark">Facturas Recientes</h3>
-                  <button 
+                  <button
                     onClick={() => setCurrentView("invoices")}
                     className="text-brand-primary font-bold text-sm hover:underline text-left"
                   >
                     Ver todas
                   </button>
                 </div>
-                
+
                 <div className="overflow-x-auto scrollbar-hide">
                   <table className="w-full text-left min-w-[600px]">
                     <thead>
@@ -359,8 +567,8 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                             <span className={cn(
                               "px-4 py-1.5 rounded-full text-xs font-bold",
                               invoice.status === "Pagada" ? "bg-emerald-100 text-emerald-600" :
-                              invoice.status === "Pendiente" ? "bg-brand-gold/20 text-brand-gold-darker" :
-                              "bg-red-100 text-red-600"
+                                invoice.status === "Pendiente" ? "bg-brand-gold/20 text-brand-gold-darker" :
+                                  "bg-red-100 text-red-600"
                             )}>
                               {invoice.status}
                             </span>
@@ -377,9 +585,12 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                   </table>
                 </div>
               </div>
+              */}
             </motion.div>
           )}
 
+          {/* SECCIÓN HISTORIAL DESHABILITADA - Pendiente conectar a facturas reales */}
+          {/*
           {currentView === "invoices" && (
             <motion.div
               key="invoices-view"
@@ -393,9 +604,9 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                 <div className="flex items-center gap-2 lg:gap-4">
                   <div className="relative flex-1 lg:flex-none">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-dark/30" />
-                    <input 
-                      type="text" 
-                      placeholder="Buscar..." 
+                    <input
+                      type="text"
+                      placeholder="Buscar..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full bg-brand-light border border-brand-dark/5 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary lg:w-64 transition-all"
@@ -406,7 +617,7 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                   </button>
                 </div>
               </div>
-              
+
               <div className="overflow-x-auto scrollbar-hide">
                 <table className="w-full text-left min-w-[600px]">
                   <thead>
@@ -430,8 +641,8 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
                           <span className={cn(
                             "px-4 py-1.5 rounded-full text-xs font-bold",
                             invoice.status === "Pagada" ? "bg-emerald-100 text-emerald-600" :
-                            invoice.status === "Pendiente" ? "bg-brand-gold/20 text-brand-gold-darker" :
-                            "bg-red-100 text-red-600"
+                              invoice.status === "Pendiente" ? "bg-brand-gold/20 text-brand-gold-darker" :
+                                "bg-red-100 text-red-600"
                           )}>
                             {invoice.status}
                           </span>
@@ -450,6 +661,7 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
               </div>
             </motion.div>
           )}
+          */}
 
           {currentView === "clients" && (
             <motion.div
@@ -457,31 +669,14 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6"
             >
-              {clients.map((client, i) => (
-                <div key={i} className="glass p-6 rounded-[32px] shadow-3d hover-3d flex items-center gap-6">
-                  <div className="w-16 h-16 bg-brand-primary/10 rounded-2xl flex items-center justify-center shrink-0">
-                    <Users className="w-8 h-8 text-brand-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-display font-bold text-brand-dark truncate">{client.name}</h4>
-                    <p className="text-sm text-brand-dark/50 font-mono">{client.rfc}</p>
-                    <p className="text-xs text-brand-dark/40 truncate">{client.email}</p>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <ActionButton icon={Eye} color="text-brand-primary" onClick={() => handleViewInvoice(client.rfc)} />
-                    <ActionButton icon={Settings} color="text-brand-dark" onClick={() => toast.info("Configurando cliente...")} />
-                  </div>
-                </div>
-              ))}
-              <button 
-                onClick={() => setShowNewClientModal(true)}
-                className="border-2 border-dashed border-brand-dark/10 rounded-[32px] p-6 flex flex-col items-center justify-center gap-2 text-brand-dark/40 hover:border-brand-primary hover:text-brand-primary transition-all group"
-              >
-                <Plus className="w-8 h-8 group-hover:scale-110 transition-transform" />
-                <span className="font-bold">Agregar Nuevo Cliente</span>
-              </button>
+              <ClientsPage onInvoice={(client) => {
+                // Store selected client data for invoice form
+                sessionStorage.setItem("selectedClient", JSON.stringify(client));
+                setCurrentView("dashboard");
+                // Trigger new invoice view with pre-filled client
+                window.dispatchEvent(new CustomEvent("new-invoice-with-client", { detail: client }));
+              }} />
             </motion.div>
           )}
 
@@ -491,113 +686,337 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="max-w-2xl space-y-8"
+              className="space-y-6"
             >
-              <div className="glass p-8 rounded-[32px] shadow-3d space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-display font-bold text-brand-dark">Perfil del Emisor</h3>
-                  <button 
-                    onClick={() => setShowRegimeWizard(true)}
-                    className="text-xs font-bold text-brand-primary flex items-center gap-1 hover:underline"
-                  >
-                    <Sparkles className="w-3 h-3" /> ¿No conoces tu régimen?
-                  </button>
+              {loadingCompany ? (
+                <div className="glass p-12 rounded-[32px] shadow-3d flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-brand-primary" />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">RFC</label>
-                    <div className="p-3 bg-brand-light rounded-xl font-mono text-brand-dark">ABC123456T1</div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">Régimen</label>
-                    <div className="p-3 bg-brand-light rounded-xl text-brand-dark truncate">{userRegime}</div>
-                  </div>
-                  <div className="sm:col-span-2 space-y-2">
-                    <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest ml-1">Nombre Comercial</label>
-                    <input 
-                      type="text" 
-                      value={userName} 
-                      onChange={(e) => setUserName(e.target.value)}
-                      className="w-full p-3 bg-brand-light rounded-xl border border-transparent focus:border-brand-primary focus:outline-none font-semibold text-brand-dark" 
-                    />
-                  </div>
-                </div>
-                <button 
-                  onClick={handleSaveSettings}
-                  className="w-full sm:w-auto bg-brand-dark text-white px-8 py-4 rounded-xl font-bold hover:bg-brand-primary transition-all shadow-3d hover-3d active:scale-95"
-                >
-                  Guardar Cambios
-                </button>
-              </div>
+              ) : (
+                <>
+                  <div className="glass p-6 lg:p-8 rounded-[32px] shadow-3d space-y-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-brand-primary/10 rounded-2xl flex items-center justify-center">
+                          <Building className="w-6 h-6 text-brand-primary" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-display font-bold text-brand-dark">Perfil del Emisor</h3>
+                          <p className="text-sm text-brand-dark/50">Datos fiscales para facturación</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowRegimeWizard(true)}
+                        className="text-xs font-bold text-brand-primary flex items-center gap-1 hover:underline"
+                      >
+                        <Sparkles className="w-3 h-3" /> ¿No conoces tu régimen?
+                      </button>
+                    </div>
 
-              {showRegimeWizard && (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="glass p-8 rounded-[32px] shadow-3d border-2 border-brand-primary/20"
-                >
-                  <RegimeWizard onComplete={handleRegimeComplete} />
-                </motion.div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">RFC *</label>
+                        <input
+                          type="text"
+                          value={companyData.RFC}
+                          onChange={(e) => handleCompanyChange("RFC", e.target.value.toUpperCase())}
+                          placeholder="XAXX010101000"
+                          className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 font-mono text-brand-dark"
+                          maxLength={13}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">Régimen Fiscal *</label>
+                        <select
+                          value={companyData.RegimenFiscal}
+                          onChange={(e) => handleCompanyChange("RegimenFiscal", e.target.value)}
+                          className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                        >
+                          <option value="">Seleccionar régimen...</option>
+                          {REGIMENES_FISCALES.map((reg) => (
+                            <option key={reg.clave} value={reg.clave}>
+                              {reg.clave} - {reg.descripcion}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2 space-y-2">
+                        <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">Nombre o Razón Social *</label>
+                        <input
+                          type="text"
+                          value={companyData.Nombre}
+                          onChange={(e) => handleCompanyChange("Nombre", e.target.value)}
+                          placeholder="Mi Empresa S.A. de C.V."
+                          className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 font-semibold text-brand-dark"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-brand-dark/5 pt-6">
+                      <h4 className="text-sm font-bold text-brand-dark/60 mb-4 flex items-center gap-2">
+                        <Mail className="w-4 h-4" /> Información de Contacto
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">Email</label>
+                          <input
+                            type="email"
+                            value={companyData.Email}
+                            onChange={(e) => handleCompanyChange("Email", e.target.value)}
+                            placeholder="contacto@miempresa.com"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">Teléfono</label>
+                          <input
+                            type="tel"
+                            value={companyData.Telefono}
+                            onChange={(e) => handleCompanyChange("Telefono", e.target.value)}
+                            placeholder="55 1234 5678"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-brand-dark/5 pt-6">
+                      <h4 className="text-sm font-bold text-brand-dark/60 mb-4 flex items-center gap-2">
+                        <MapPin className="w-4 h-4" /> Dirección Fiscal
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+                        <div className="sm:col-span-2 lg:col-span-2 space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">Calle</label>
+                          <input
+                            type="text"
+                            value={companyData.Calle}
+                            onChange={(e) => handleCompanyChange("Calle", e.target.value)}
+                            placeholder="Av. Insurgentes Sur"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">No. Ext</label>
+                          <input
+                            type="text"
+                            value={companyData.NumeroExt}
+                            onChange={(e) => handleCompanyChange("NumeroExt", e.target.value)}
+                            placeholder="123"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">No. Int</label>
+                          <input
+                            type="text"
+                            value={companyData.NumeroInt}
+                            onChange={(e) => handleCompanyChange("NumeroInt", e.target.value)}
+                            placeholder="A"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">CP</label>
+                          <input
+                            type="text"
+                            value={companyData.CP}
+                            onChange={(e) => handleCompanyChange("CP", e.target.value)}
+                            placeholder="06600"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                            maxLength={5}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">Colonia</label>
+                          <input
+                            type="text"
+                            value={companyData.Colonia}
+                            onChange={(e) => handleCompanyChange("Colonia", e.target.value)}
+                            placeholder="Centro"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">Municipio</label>
+                          <input
+                            type="text"
+                            value={companyData.Municipio}
+                            onChange={(e) => handleCompanyChange("Municipio", e.target.value)}
+                            placeholder="Cuauhtémoc"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">Estado</label>
+                          <input
+                            type="text"
+                            value={companyData.Estado}
+                            onChange={(e) => handleCompanyChange("Estado", e.target.value)}
+                            placeholder="Ciudad de México"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest">País</label>
+                          <input
+                            type="text"
+                            value={companyData.Pais}
+                            onChange={(e) => handleCompanyChange("Pais", e.target.value)}
+                            placeholder="México"
+                            className="w-full p-3 bg-brand-light rounded-xl border border-brand-dark/10 focus:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 text-brand-dark"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleSaveCompany}
+                      disabled={savingCompany}
+                      className="w-full sm:w-auto bg-brand-primary text-white px-8 py-4 rounded-xl font-bold hover:bg-brand-primary/90 transition-all shadow-3d hover-3d active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {savingCompany ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-5 h-5" />
+                          Guardar Cambios
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {showRegimeWizard && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                      onClick={() => setShowRegimeWizard(false)}
+                    >
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        className="glass p-6 lg:p-8 rounded-[32px] shadow-3d border-2 border-brand-primary/20 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <RegimeWizard onComplete={handleRegimeComplete} />
+                      </motion.div>
+                    </motion.div>
+                  )}
+
+                  {/* SECCIÓN PAC DESHABILITADA - Configuración PAC ya realizada */}
+                  {/*
+                  <div className="glass p-6 lg:p-8 rounded-[32px] shadow-3d">
+                    <div
+                      onClick={() => setCurrentView("pac")}
+                      className="flex items-center justify-between p-4 bg-brand-light rounded-2xl cursor-pointer hover:bg-brand-primary/5 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "w-12 h-12 rounded-2xl flex items-center justify-center",
+                          pacConfigured ? "bg-emerald-100" : "bg-brand-primary/10"
+                        )}>
+                          <Shield className={cn(
+                            "w-6 h-6",
+                            pacConfigured ? "text-emerald-600" : "text-brand-primary"
+                          )} />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-brand-dark">Configuración de Timbrado</h4>
+                          <p className="text-sm text-brand-dark/50">
+                            {pacConfigured ? "PAC configurado y listo" : "Configura tu PAC para timbrar facturas"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {pacConfigured && (
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-600 text-xs font-bold rounded-full">
+                            Activo
+                          </span>
+                        )}
+                        <ChevronRight className="w-5 h-5 text-brand-dark/30" />
+                      </div>
+                    </div>
+                  </div>
+                  */}
+                </>
               )}
+            </motion.div>
+          )}
+
+          {currentView === "pending" && (
+            <motion.div
+              key="pending-view"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <PendingInvoices
+                onEdit={(invoice) => {
+                  setCurrentView("dashboard");
+                }}
+                onCreateNew={onNewInvoice}
+              />
+            </motion.div>
+          )}
+
+          {/* VISTA PAC DESHABILITADA - Configuración ya realizada */}
+          {/*
+          {currentView === "pac" && (
+            <motion.div
+              key="pac-view"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="glass p-6 lg:p-8 rounded-[32px] shadow-3d"
+            >
+              <button
+                onClick={() => setCurrentView("settings")}
+                className="flex items-center gap-2 text-brand-primary hover:underline mb-6 font-semibold"
+              >
+                <ArrowDownRight className="w-4 h-4" />
+                Volver a Configuración
+              </button>
+              <PACSettings />
+            </motion.div>
+          )}
+          */}
+
+          {currentView === "ocr-scanner" && (
+            <motion.div
+              key="ocr-scanner-view"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <OCRScannerPage onBack={() => setCurrentView("dashboard")} />
+            </motion.div>
+          )}
+
+          {currentView === "iva-tabulator" && (
+            <motion.div
+              key="iva-tabulator-view"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <IVATabulatorPage onBack={() => setCurrentView("dashboard")} />
             </motion.div>
           )}
         </AnimatePresence>
 
         <AnimatePresence>
           {selectedInvoice && (
-            <InvoiceViewer 
-              invoice={selectedInvoice} 
-              onClose={() => setSelectedInvoice(null)} 
+            <InvoiceViewer
+              invoice={selectedInvoice}
+              onClose={() => setSelectedInvoice(null)}
             />
-          )}
-        </AnimatePresence>
-
-        {/* New Client Modal (Simulation) */}
-        <AnimatePresence>
-          {showNewClientModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setShowNewClientModal(false)}
-                className="absolute inset-0 bg-brand-dark/60 backdrop-blur-sm"
-              />
-              <motion.div 
-                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative bg-brand-light w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden"
-              >
-                <div className="p-6 sm:p-8">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-display font-bold text-brand-dark">Nuevo Cliente</h3>
-                    <button onClick={() => setShowNewClientModal(false)} className="p-2 hover:bg-brand-dark/5 rounded-full transition-colors">
-                      <X className="w-6 h-6 text-brand-dark/40" />
-                    </button>
-                  </div>
-                  
-                  <form onSubmit={handleAddClient} className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest ml-1">RFC</label>
-                      <input type="text" placeholder="XAXX010101000" className="w-full p-3 bg-white border border-brand-dark/10 rounded-xl focus:border-brand-primary focus:outline-none font-semibold" required />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest ml-1">Razón Social</label>
-                      <input type="text" placeholder="Nombre del cliente" className="w-full p-3 bg-white border border-brand-dark/10 rounded-xl focus:border-brand-primary focus:outline-none font-semibold" required />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-brand-dark/40 uppercase tracking-widest ml-1">Email</label>
-                      <input type="email" placeholder="correo@ejemplo.com" className="w-full p-3 bg-white border border-brand-dark/10 rounded-xl focus:border-brand-primary focus:outline-none font-semibold" required />
-                    </div>
-                    
-                    <button type="submit" className="w-full bg-brand-primary text-white py-4 rounded-2xl font-bold shadow-3d hover-3d mt-4">
-                      Registrar Cliente
-                    </button>
-                  </form>
-                </div>
-              </motion.div>
-            </div>
           )}
         </AnimatePresence>
       </main>
@@ -605,9 +1024,9 @@ export function Dashboard({ onNewInvoice, onLogout }: DashboardProps) {
   );
 }
 
-function SidebarItem({ icon: Icon, label, active = false, onClick }: { icon: any, label: string, active?: boolean, onClick?: () => void }) {
+function SidebarItem({ icon: Icon, label, active = false, onClick, badge }: { icon: any, label: string, active?: boolean, onClick?: () => void, badge?: number }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className={cn(
         "flex items-center gap-4 w-full px-4 py-4 rounded-2xl font-semibold transition-all group",
@@ -616,14 +1035,22 @@ function SidebarItem({ icon: Icon, label, active = false, onClick }: { icon: any
     >
       <Icon className={cn("w-5 h-5 transition-transform group-hover:scale-110", active ? "text-white" : "text-white/40")} />
       <span>{label}</span>
-      {active && <motion.div layoutId="active" className="ml-auto w-1.5 h-1.5 bg-white rounded-full" />}
+      {badge && badge > 0 && (
+        <span className={cn(
+          "ml-auto px-2 py-0.5 rounded-full text-xs font-bold",
+          active ? "bg-white text-brand-primary" : "bg-orange-500 text-white"
+        )}>
+          {badge}
+        </span>
+      )}
+      {active && !badge && <motion.div layoutId="active" className="ml-auto w-1.5 h-1.5 bg-white rounded-full" />}
     </button>
   );
 }
 
 function ActionButton({ icon: Icon, color, onClick }: { icon: any, color: string, onClick?: () => void }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className={cn("p-2 rounded-xl bg-white shadow-sm border border-brand-dark/5 hover:shadow-md transition-all active:scale-90", color)}
     >
@@ -634,7 +1061,7 @@ function ActionButton({ icon: Icon, color, onClick }: { icon: any, color: string
 
 function MobileNavItem({ icon: Icon, active = false, onClick }: { icon: any, active?: boolean, onClick?: () => void }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className={cn(
         "p-3 rounded-xl transition-all",
