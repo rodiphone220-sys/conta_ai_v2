@@ -46,6 +46,16 @@ export function LoginScreen({ onLogin, onSignUp }: LoginScreenProps) {
     const handleOAuthRedirect = () => {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const accessToken = hashParams.get('access_token');
+      const error = hashParams.get('error');
+
+      // Check for OAuth errors
+      if (error) {
+        console.warn("OAuth redirect error:", error, hashParams.get('error_description'));
+        toast.error("No se pudo completar el inicio de sesión con Google");
+        setIsGoogleLoading(false);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
 
       if (accessToken && sessionStorage.getItem('google_oauth_redirect') === 'true') {
         // Clear the redirect flag
@@ -91,19 +101,24 @@ export function LoginScreen({ onLogin, onSignUp }: LoginScreenProps) {
           }),
         });
 
+        if (!apiResponse.ok) {
+          throw new Error(`Server error: ${apiResponse.status}`);
+        }
+
         const data = await apiResponse.json();
 
-        if (apiResponse.ok && data.success) {
+        if (data.success) {
           toast.success(`¡Bienvenido de vuelta, ${data.user.name}!`, {
             description: "Has iniciado sesión con Google.",
           });
           onLogin(data.user);
         } else {
-          toast.error(data.error || "Error con Google");
-          setIsGoogleLoading(false);
+          throw new Error(data.error || "Error en la respuesta del servidor");
         }
-      } catch {
-        toast.error("Error al procesar la respuesta de Google");
+      } catch (err) {
+        console.error("Google login error:", err);
+        const message = err instanceof Error ? err.message : "Error desconocido";
+        toast.error(`Error al iniciar sesión con Google: ${message}`);
         setIsGoogleLoading(false);
       }
     };
@@ -152,6 +167,10 @@ export function LoginScreen({ onLogin, onSignUp }: LoginScreenProps) {
   const handleGoogleResponse = async (response: any) => {
     setIsGoogleLoading(true);
     try {
+      if (!response?.credential) {
+        throw new Error("No se recibió credencial de Google");
+      }
+
       const payload = JSON.parse(atob(response.credential.split(".")[1]));
       const googleEmail = payload.email;
       const googleName = payload.name;
@@ -174,10 +193,18 @@ export function LoginScreen({ onLogin, onSignUp }: LoginScreenProps) {
         });
         onLogin(data.user);
       } else {
-        toast.error(data.error || "Error con Google");
+        throw new Error(data.error || "Error en la respuesta del servidor");
       }
-    } catch {
-      toast.error("Error al procesar la respuesta de Google");
+    } catch (err) {
+      console.error("Google response processing error:", err);
+      const message = err instanceof Error ? err.message : "Error desconocido";
+
+      // If One Tap failed, automatically fallback to redirect
+      if (message.includes("credencial") || message.includes("Server error")) {
+        console.log("One Tap failed, will use redirect fallback");
+      }
+
+      toast.error(`Error al iniciar sesión con Google: ${message}`);
     } finally {
       setIsGoogleLoading(false);
     }
@@ -199,9 +226,14 @@ export function LoginScreen({ onLogin, onSignUp }: LoginScreenProps) {
           const reason = notification.getNotDisplayedReason() || notification.getSkippedReason() || "unknown";
           console.warn("Google One Tap not displayed:", reason);
 
-          // If One Tap fails, fallback to redirect mode
+          // On mobile, One Tap often fails, so immediately fallback to redirect
           setGooglePromptFailed(true);
           setIsGoogleLoading(false);
+
+          // Auto-redirect after a short delay for better UX
+          setTimeout(() => {
+            triggerGoogleOAuthRedirect();
+          }, 500);
 
           toast.error("El popup de Google no se mostró. Usando método alternativo...", {
             duration: 3000,

@@ -41,6 +41,16 @@ export function SignUpScreen({ onBack, onSignUp }: SignUpScreenProps) {
     const handleOAuthRedirect = () => {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const accessToken = hashParams.get('access_token');
+      const error = hashParams.get('error');
+
+      // Check for OAuth errors
+      if (error) {
+        console.warn("OAuth redirect error:", error, hashParams.get('error_description'));
+        toast.error("No se pudo completar el registro con Google");
+        setIsGoogleLoading(false);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
 
       if (accessToken && sessionStorage.getItem('google_oauth_redirect_signup') === 'true') {
         // Clear the redirect flag
@@ -87,9 +97,13 @@ export function SignUpScreen({ onBack, onSignUp }: SignUpScreenProps) {
           }),
         });
 
+        if (!apiResponse.ok) {
+          throw new Error(`Server error: ${apiResponse.status}`);
+        }
+
         const data = await apiResponse.json();
 
-        if (apiResponse.ok) {
+        if (data.success || data.isNewUser || data.user) {
           // Mostrar password autogenerado si es usuario nuevo
           if (data.isNewUser && data.autoPassword) {
             toast.success(`¡Bienvenido, ${googleName}! Tu password: ${data.autoPassword}`, {
@@ -113,11 +127,12 @@ export function SignUpScreen({ onBack, onSignUp }: SignUpScreenProps) {
           }
           onSignUp(googleEmail, googleName, true);
         } else {
-          toast.error(data.error || "Error con Google");
-          setIsGoogleLoading(false);
+          throw new Error(data.error || "Error en la respuesta del servidor");
         }
-      } catch {
-        toast.error("Error al procesar la respuesta de Google");
+      } catch (err) {
+        console.error("Google signup error:", err);
+        const message = err instanceof Error ? err.message : "Error desconocido";
+        toast.error(`Error al registrarse con Google: ${message}`);
         setIsGoogleLoading(false);
       }
     };
@@ -166,6 +181,10 @@ export function SignUpScreen({ onBack, onSignUp }: SignUpScreenProps) {
   const handleGoogleResponse = async (response: any) => {
     setIsGoogleLoading(true);
     try {
+      if (!response?.credential) {
+        throw new Error("No se recibió credencial de Google");
+      }
+
       const payload = JSON.parse(atob(response.credential.split(".")[1]));
       const googleEmail = payload.email;
       const googleName = payload.name;
@@ -180,9 +199,13 @@ export function SignUpScreen({ onBack, onSignUp }: SignUpScreenProps) {
         }),
       });
 
+      if (!apiResponse.ok) {
+        throw new Error(`Server error: ${apiResponse.status}`);
+      }
+
       const data = await apiResponse.json();
 
-      if (apiResponse.ok) {
+      if (data.success || data.isNewUser || data.user) {
         // Mostrar password autogenerado si es usuario nuevo
         if (data.isNewUser && data.autoPassword) {
           toast.success(`¡Bienvenido, ${googleName}! Tu password: ${data.autoPassword}`, {
@@ -206,10 +229,12 @@ export function SignUpScreen({ onBack, onSignUp }: SignUpScreenProps) {
         }
         onSignUp(googleEmail, googleName, true);
       } else {
-        toast.error(data.error || "Error con Google");
+        throw new Error(data.error || "Error en la respuesta del servidor");
       }
-    } catch {
-      toast.error("Error al procesar la respuesta de Google");
+    } catch (err) {
+      console.error("Google response processing error:", err);
+      const message = err instanceof Error ? err.message : "Error desconocido";
+      toast.error(`Error al procesar la respuesta de Google: ${message}`);
     } finally {
       setIsGoogleLoading(false);
     }
@@ -231,16 +256,14 @@ export function SignUpScreen({ onBack, onSignUp }: SignUpScreenProps) {
           const reason = notification.getNotDisplayedReason() || notification.getSkippedReason() || "unknown";
           console.warn("Google One Tap not displayed:", reason);
 
-          // If One Tap fails, fallback to redirect mode
+          // On mobile, One Tap often fails, so immediately fallback to redirect
           setGooglePromptFailed(true);
           setIsGoogleLoading(false);
 
-          toast.info("Usando método alternativo de Google...", {
-            duration: 3000,
-          });
-
-          // Trigger OAuth redirect as fallback
-          triggerGoogleOAuthRedirect();
+          // Auto-redirect after a short delay for better UX
+          setTimeout(() => {
+            triggerGoogleOAuthRedirect();
+          }, 500);
         }
       });
     } catch (error) {
