@@ -11,5 +11,5 @@ certs/
 *.cer
 *.key
 *.pem
-
-.vercel
+client_secret_*.json
+*.apps.googleusercontent.com.json
