@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
+import API_URL from "../config/api";
 
 interface Client {
   id: string;
@@ -65,8 +66,6 @@ const REGIMENES_FISCALES = [
   { clave: "612", descripcion: "Personas Físicas con Actividad Empresarial" },
   { clave: "615", descripcion: "Sin obligaciones fiscales" },
 ];
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 const initialFormData: ClientFormData = {
   rfc: "",

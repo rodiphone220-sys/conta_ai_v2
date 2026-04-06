@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Clock, 
-  FileText, 
-  Search, 
+import {
+  Clock,
+  FileText,
+  Search,
   Plus,
   Edit3,
   Trash2,
@@ -18,8 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import API_URL from "../config/api";
 
 interface PendingInvoice {
   ID: string;
@@ -69,12 +68,12 @@ export function PendingInvoices({ onEdit, onCreateNew }: PendingInvoicesProps) {
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar esta factura pendiente?')) return;
-    
+
     try {
       const response = await fetch(`${API_URL}/api/pending-invoices/${id}`, {
         method: 'DELETE'
       });
-      
+
       if (response.ok) {
         setPendingInvoices(prev => prev.filter(i => (i.ID || i.id) !== id));
         toast.success('Factura eliminada');
@@ -86,18 +85,18 @@ export function PendingInvoices({ onEdit, onCreateNew }: PendingInvoicesProps) {
 
   const handleTimbrar = async (invoice: PendingInvoice) => {
     const id = invoice.ID || invoice.id;
-    
+
     if (!confirm(`¿Timbrar factura ${id}? Esto consumirá un timbre.`)) return;
-    
+
     setTimbrando(id);
-    
+
     try {
       const response = await fetch(`${API_URL}/api/pending-invoices/${id}/timbrar`, {
         method: 'POST'
       });
-      
+
       const result = await response.json();
-      
+
       if (result.success) {
         setPendingInvoices(prev => prev.filter(i => (i.ID || i.id) !== id));
         toast.success('¡Factura timbrada!', {
@@ -167,7 +166,7 @@ export function PendingInvoices({ onEdit, onCreateNew }: PendingInvoicesProps) {
             </p>
           </div>
         </div>
-        
+
         <button
           onClick={onCreateNew}
           className="flex items-center gap-2 px-4 py-3 bg-brand-primary text-white rounded-xl font-bold hover:bg-brand-primary/90 transition-all"
@@ -235,9 +234,9 @@ export function PendingInvoices({ onEdit, onCreateNew }: PendingInvoicesProps) {
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-xs font-bold",
                           invoice.Status === 'BORRADOR' ? "bg-gray-100 text-gray-600" :
-                          invoice.Status === 'GENERADA' ? "bg-blue-100 text-blue-600" :
-                          invoice.Status === 'FIRMADA' ? "bg-purple-100 text-purple-600" :
-                          "bg-orange-100 text-orange-600"
+                            invoice.Status === 'GENERADA' ? "bg-blue-100 text-blue-600" :
+                              invoice.Status === 'FIRMADA' ? "bg-purple-100 text-purple-600" :
+                                "bg-orange-100 text-orange-600"
                         )}>
                           {invoice.Status}
                         </span>
@@ -327,15 +326,15 @@ export function PendingInvoices({ onEdit, onCreateNew }: PendingInvoicesProps) {
   );
 }
 
-function InvoiceDetailModal({ 
-  invoice, 
-  onClose, 
-  onEdit, 
-  onTimbrar, 
-  timbrando 
-}: { 
-  invoice: PendingInvoice; 
-  onClose: () => void; 
+function InvoiceDetailModal({
+  invoice,
+  onClose,
+  onEdit,
+  onTimbrar,
+  timbrando
+}: {
+  invoice: PendingInvoice;
+  onClose: () => void;
   onEdit?: (inv: PendingInvoice) => void;
   onTimbrar: () => void;
   timbrando: boolean;
@@ -401,7 +400,7 @@ function InvoiceDetailModal({
               <span className={cn(
                 "px-3 py-1 rounded-full text-xs font-bold",
                 invoice.Status === 'BORRADOR' ? "bg-gray-100 text-gray-600" :
-                "bg-orange-100 text-orange-600"
+                  "bg-orange-100 text-orange-600"
               )}>
                 {invoice.Status}
               </span>

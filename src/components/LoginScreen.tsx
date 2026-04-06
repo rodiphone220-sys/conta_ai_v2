@@ -10,7 +10,7 @@ declare global {
   }
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import API_URL from "../config/api";
 const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID || "").trim().replace(/"/g, "").trim();
 const isValidGoogleClientId = GOOGLE_CLIENT_ID &&
   !GOOGLE_CLIENT_ID.startsWith("YOUR_GOOGLE_CLIENT_ID") &&

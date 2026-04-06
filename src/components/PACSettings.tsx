@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  Shield, 
-  Settings, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  Shield,
+  Settings,
+  CheckCircle2,
+  AlertCircle,
   Loader2,
   Save,
   X,
@@ -21,8 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import API_URL from "../config/api";
 
 interface PACConfig {
   provider: string;
@@ -72,7 +71,7 @@ export function PACSettings() {
     try {
       const response = await fetch(`${API_URL}/api/pac/config`);
       const data = await response.json();
-      
+
       if (data.configured) {
         setConfig(prev => ({
           ...prev,
@@ -190,7 +189,7 @@ export function PACSettings() {
 
     setTesting(true);
     setTestResult(null);
-    
+
     try {
       const response = await fetch(`${API_URL}/api/pac/test`, {
         method: 'POST',
@@ -407,7 +406,7 @@ export function PACSettings() {
               onClick={() => cerInputRef.current?.click()}
               className={cn(
                 "w-full p-3 mt-1 border-2 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2",
-                cerFile 
+                cerFile
                   ? "bg-emerald-50 border-emerald-500 text-emerald-700"
                   : "bg-white border-brand-dark/10 text-brand-dark/50 hover:border-brand-primary hover:text-brand-primary"
               )}
@@ -442,7 +441,7 @@ export function PACSettings() {
               onClick={() => keyInputRef.current?.click()}
               className={cn(
                 "w-full p-3 mt-1 border-2 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2",
-                keyFile 
+                keyFile
                   ? "bg-emerald-50 border-emerald-500 text-emerald-700"
                   : "bg-white border-brand-dark/10 text-brand-dark/50 hover:border-brand-primary hover:text-brand-primary"
               )}
@@ -488,7 +487,7 @@ export function PACSettings() {
       {testResult && (
         <div className={cn(
           "p-4 rounded-xl border flex items-center gap-3",
-          testResult.success 
+          testResult.success
             ? "bg-emerald-50 border-emerald-200 text-emerald-700"
             : "bg-red-50 border-red-200 text-red-700"
         )}>

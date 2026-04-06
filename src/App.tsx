@@ -15,8 +15,7 @@ import { AIAssistant } from "./components/AIAssistant";
 import { SetupWizard } from "./components/SetupWizard";
 import { AlertSystem } from "./components/AlertSystem";
 import { motion, AnimatePresence } from "motion/react";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import API_URL from "./config/api";
 
 type AppState = "splash" | "login" | "signup" | "verification" | "dashboard" | "new-invoice";
 

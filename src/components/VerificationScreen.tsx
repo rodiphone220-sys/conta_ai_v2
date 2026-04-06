@@ -3,8 +3,9 @@ import { motion } from "motion/react";
 import { Mail, ArrowLeft, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
+import API_URL from "../config/api";
 
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3001").trim();
+const API_URL_TRIMMED = API_URL.trim();
 
 interface VerificationScreenProps {
   email: string;
@@ -23,7 +24,7 @@ export function VerificationScreen({ email, name, onVerificationComplete, onBack
     // Request verification code from server
     const requestVerificationCode = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/auth/resend-verification`, {
+        const response = await fetch(`${API_URL_TRIMMED}/api/auth/resend-verification`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, name })
@@ -53,7 +54,7 @@ export function VerificationScreen({ email, name, onVerificationComplete, onBack
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/auth/verify`, {
+      const response = await fetch(`${API_URL_TRIMMED}/api/auth/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, code: enteredCode }),
@@ -87,7 +88,7 @@ export function VerificationScreen({ email, name, onVerificationComplete, onBack
     setError(null);
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/auth/resend-verification`, {
+      const response = await fetch(`${API_URL_TRIMMED}/api/auth/resend-verification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, name })

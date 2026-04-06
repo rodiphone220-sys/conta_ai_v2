@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, ChangeEvent } from "react";
 import { motion } from "motion/react";
-import { 
-  Shield, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  Shield,
+  CheckCircle2,
+  AlertCircle,
   Loader2,
   FileKey,
   FileCheck,
@@ -14,8 +14,7 @@ import {
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import forge from "node-forge";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import API_URL from "../config/api";
 
 interface SetupWizardProps {
   onComplete: () => void;
@@ -88,7 +87,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     telefono: "",
     regimenFiscal: "",
   });
-  
+
   const cerInputRef = useRef<HTMLInputElement>(null);
   const keyInputRef = useRef<HTMLInputElement>(null);
 
@@ -110,10 +109,10 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
     try {
       const response = await fetch(`${API_URL}/api/sat-lookup?rfc=${encodeURIComponent(rfc)}`);
       const data = await response.json();
-      
+
       if (data && !data.error) {
         setSatData(data);
-        
+
         setCompanyForm(prev => ({
           ...prev,
           nombre: data.nombre || prev.nombre,
@@ -127,7 +126,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           cp: data.cp || prev.cp,
           regimenFiscal: data.regimenFiscal || prev.regimenFiscal,
         }));
-        
+
         toast.success("Datos del SAT verificados", {
           description: `RFC: ${data.rfc} - ${data.nombre}`,
         });
@@ -156,13 +155,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           const der = forge.util.createBuffer(new Uint8Array(data));
           const asn1 = forge.asn1.fromDer(der);
           const cert = forge.pki.certificateFromAsn1(asn1);
-          
+
           const subject = cert.subject.attributes;
           const issuer = cert.issuer.attributes;
-          
+
           let rfc = "";
           let nombre = "";
-          
+
           subject.forEach((attr: any) => {
             if (attr.shortName === "OID.1.2.840.113549.1.9.1" || attr.name === "emailAddress") {
               const email = attr.value;
@@ -173,7 +172,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               nombre = attr.value || "";
             }
           });
-          
+
           if (!rfc) {
             const issuerEmail = issuer.find((a: any) => a.name === "emailAddress");
             if (issuerEmail) {
@@ -181,11 +180,11 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               if (rfcMatch) rfc = rfcMatch[1].toUpperCase();
             }
           }
-          
+
           const now = new Date();
           const validFrom = cert.validity.notBefore;
           const validTo = cert.validity.notAfter;
-          
+
           setCertData({
             rfc: rfc || "RFC no encontrado en certificado",
             nombre: nombre || "Nombre no encontrado",
@@ -196,7 +195,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             },
             serialNumber: cert.serialNumber || ""
           });
-          
+
           resolve(certData);
         } catch (err) {
           console.error("Error parsing certificate:", err);
@@ -210,22 +209,22 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const handleCerUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     if (!file.name.endsWith(".cer")) {
       toast.error("Archivo inválido", { description: "Selecciona un archivo .cer" });
       return;
     }
-    
+
     setCerFile(file);
     setProcessing(true);
     setError(null);
     setSatData(null);
-    
+
     try {
       const data = await parseCertificate(file);
       if (data) {
         const rfcToLookup = data.rfc && data.rfc.length >= 12 ? data.rfc : null;
-        
+
         if (rfcToLookup) {
           setCompanyForm(prev => ({ ...prev, rfc: rfcToLookup, nombre: data.nombre }));
           await lookupSatData(rfcToLookup);
@@ -245,13 +244,13 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const handleKeyUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     const ext = file.name.toLowerCase().split('.').pop();
     if (ext !== 'key' && ext !== 'sdg') {
       toast.error("Archivo inválido", { description: "Selecciona un archivo .key o .sdg" });
       return;
     }
-    
+
     setKeyFile(file);
   };
 
@@ -260,24 +259,24 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       toast.error("Completa todos los campos");
       return;
     }
-    
+
     const rfcToUse = companyForm.rfc || certData?.rfc;
-    
+
     if (!rfcToUse || rfcToUse.length < 12) {
       toast.error("Ingresa un RFC válido para continuar");
       return;
     }
-    
+
     setStep(2);
   };
 
   const performSatLookup = async () => {
     setProcessing(true);
     setError(null);
-    
+
     try {
       const rfcToLookup = companyForm.rfc || certData?.rfc;
-      
+
       if (rfcToLookup && rfcToLookup.length >= 12) {
         const success = await lookupSatData(rfcToLookup);
         if (!success) {
@@ -287,7 +286,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
           }));
         }
       }
-      
+
       setStep(3);
     } catch {
       setError("Error al procesar los archivos");
@@ -308,20 +307,20 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       toast.error("Error", { description: "No hay datos del certificado" });
       return;
     }
-    
+
     setProcessing(true);
-    
+
     try {
       const formData = new FormData();
       formData.append("cer", cerFile!);
       formData.append("key", keyFile!);
       formData.append("password", password);
-      
+
       const response = await fetch(`${API_URL}/api/setup/save-csd`, {
         method: "POST",
         body: formData
       });
-      
+
       const companyData = {
         Nombre: companyForm.nombre,
         RFC: companyForm.rfc,
@@ -340,10 +339,10 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         LlavePrivada: keyFile?.name || "",
         satVerified: !!satData,
       };
-      
+
       localStorage.setItem("companyData", JSON.stringify(companyData));
       localStorage.setItem("csdConfigured", "true");
-      
+
       if (response.ok) {
         toast.success("CSD guardado", { description: "Configuración completada" });
       } else {
@@ -402,9 +401,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                   "border-2 rounded-2xl p-6 text-center transition-colors cursor-pointer",
                   cerFile ? "border-emerald-500 bg-emerald-50" : "border-dashed border-brand-dark/20 hover:border-brand-primary/50"
                 )} onClick={() => cerInputRef.current?.click()}>
-                  <input 
+                  <input
                     ref={cerInputRef}
-                    type="file" 
+                    type="file"
                     accept=".cer"
                     onChange={handleCerUpload}
                     className="hidden"
@@ -429,9 +428,9 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                   "border-2 rounded-2xl p-6 text-center transition-colors cursor-pointer",
                   keyFile ? "border-emerald-500 bg-emerald-50" : "border-dashed border-brand-dark/20 hover:border-brand-primary/50"
                 )} onClick={() => keyInputRef.current?.click()}>
-                  <input 
+                  <input
                     ref={keyInputRef}
-                    type="file" 
+                    type="file"
                     accept=".key"
                     onChange={handleKeyUpload}
                     className="hidden"
@@ -481,7 +480,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                     <div className="text-sm text-emerald-600 space-y-1">
                       <p><strong>Nombre:</strong> {certData.nombre}</p>
                       <p className="flex items-center gap-2">
-                        <strong>Validez:</strong> 
+                        <strong>Validez:</strong>
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-xs font-bold",
                           certData.validity.valid ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
@@ -490,7 +489,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                         </span>
                       </p>
                     </div>
-                    
+
                     <div className="space-y-2 pt-2 border-t border-emerald-200">
                       <label className="text-xs text-brand-dark/60 font-semibold">
                         4. Ingresa tu RFC (requerido):
@@ -537,8 +536,8 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                   disabled={!isFormComplete || processing}
                   className={cn(
                     "w-full p-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all",
-                    isFormComplete 
-                      ? "bg-brand-primary text-white hover:bg-brand-primary/90 shadow-3d hover-3d active:scale-95" 
+                    isFormComplete
+                      ? "bg-brand-primary text-white hover:bg-brand-primary/90 shadow-3d hover-3d active:scale-95"
                       : "bg-brand-dark/10 text-brand-dark/40 cursor-not-allowed"
                   )}
                 >

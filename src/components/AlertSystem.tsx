@@ -1,6 +1,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AlertCircle, FileText, Users, CreditCard, Clock, CheckCircle, Bell, X } from "lucide-react";
+import API_URL from "../config/api";
 
 export interface Alert {
   id: string;
@@ -18,8 +19,6 @@ export interface Alert {
 interface AlertSystemProps {
   onNavigate: (view: string) => void;
 }
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 const alertIcons = {
   pending: Clock,
@@ -187,13 +186,12 @@ export function AlertSystem({ onNavigate }: AlertSystemProps) {
                           onClick={() => handleAlertClick(alert)}
                         >
                           <div className="flex items-start gap-3">
-                            <div className={`p-2 rounded-lg ${
-                              alert.type === 'pending' ? 'bg-yellow-100 text-yellow-600' :
+                            <div className={`p-2 rounded-lg ${alert.type === 'pending' ? 'bg-yellow-100 text-yellow-600' :
                               alert.type === 'info' ? 'bg-blue-100 text-blue-600' :
-                              alert.type === 'warning' ? 'bg-orange-100 text-orange-600' :
-                              alert.type === 'success' ? 'bg-green-100 text-green-600' :
-                              'bg-brand-primary/10 text-brand-primary'
-                            }`}>
+                                alert.type === 'warning' ? 'bg-orange-100 text-orange-600' :
+                                  alert.type === 'success' ? 'bg-green-100 text-green-600' :
+                                    'bg-brand-primary/10 text-brand-primary'
+                              }`}>
                               <Icon className="w-4 h-4" />
                             </div>
                             <div className="flex-1 min-w-0">

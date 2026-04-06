@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { MessageSquare, X, Send, Bot, Loader2, AlertCircle } from "lucide-react";
+import API_URL from "../config/api";
 
 interface Message {
   role: "user" | "model";
@@ -18,7 +19,7 @@ interface AIAssistantProps {
   onNavigate?: (view: string) => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
 
 type OllamaStatus = "checking" | "online" | "offline";
 

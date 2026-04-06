@@ -37,8 +37,7 @@ import {
   UNIDADES_MEDIDA,
   PRODUCTOS_SERVICIOS
 } from "../constants";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import API_URL from "../config/api";
 
 type InvoiceStatus = 'BORRADOR' | 'GENERADA' | 'FIRMADA' | 'TIMBRANDO' | 'TIMBRADA' | 'ERROR' | 'CANCELADA';
 

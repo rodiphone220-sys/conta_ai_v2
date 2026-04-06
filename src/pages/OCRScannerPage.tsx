@@ -5,11 +5,10 @@ import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import Tesseract from "tesseract.js";
 import * as pdfjsLib from "pdfjs-dist";
+import API_URL from "../config/api";
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 interface OCRScannerPageProps {
   onBack: () => void;

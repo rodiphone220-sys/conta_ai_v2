@@ -38,8 +38,7 @@ import { ScanLine, Percent } from "lucide-react";
 import { OCRScannerPage } from "../pages/OCRScannerPage";
 import { IVATabulatorPage } from "../pages/IVATabulatorPage";
 import { REGIMENES_FISCALES as REGIMENES_FISCALES_CONST } from "../constants";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+import API_URL from "../config/api";
 
 interface CompanyData {
   Nombre: string;
