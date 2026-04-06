@@ -318,6 +318,250 @@ const companyData: any = {
   regimenFiscal: "601",
 };
 
+// In-memory users (serverless = resets on cold start)
+// Users are persisted via Google Sheets
+const authUsers: any[] = [];
+
+// ============ AUTH FUNCTIONS ============
+async function handleGoogleLogin(req: any, res: any) {
+  const { email, name } = req.body || {};
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    // Try to find user in Google Sheets
+    const gsResult = await callGoogleScript('getUser', { email });
+    let user = gsResult?.data || null;
+
+    // Also check in-memory
+    const memUser = authUsers.find(u => u.email === email);
+    if (memUser && !user) {
+      user = memUser;
+    }
+
+    if (!user) {
+      // Create user automatically
+      const autoPassword = generateAutoPassword();
+      const userId = `user_${Date.now()}`;
+
+      user = {
+        id: userId,
+        email,
+        name: name || email.split('@')[0],
+        password: autoPassword,
+        verified: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Save to Google Sheets
+      await callGoogleScript('createUser', user);
+    }
+
+    return res.json({
+      success: true,
+      user,
+      autoPassword: user.isNew ? user.password : undefined,
+      isNewUser: user.isNew || false,
+    });
+  } catch (error: any) {
+    console.error('Google login error:', error);
+    return res.status(500).json({ error: error.message || 'Login failed' });
+  }
+}
+
+async function handleGoogleSignup(req: any, res: any) {
+  const { email, name } = req.body || {};
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    // Check if user exists
+    const gsResult = await callGoogleScript('getUser', { email });
+    let user = gsResult?.data || null;
+
+    const memUser = authUsers.find(u => u.email === email);
+    if (memUser && !user) {
+      user = memUser;
+    }
+
+    const isNewUser = !user;
+
+    if (isNewUser) {
+      const autoPassword = generateAutoPassword();
+      const userId = `user_${Date.now()}`;
+
+      user = {
+        id: userId,
+        email,
+        name: name || email.split('@')[0],
+        password: autoPassword,
+        verified: true,
+        createdAt: new Date().toISOString(),
+        isNew: true,
+      };
+
+      // Save to Google Sheets
+      await callGoogleScript('createUser', user);
+
+      // Create Drive folder
+      await callGoogleScript('createUserFolder', { userId, email });
+    }
+
+    return res.json({
+      success: true,
+      user,
+      isNewUser,
+      autoPassword: isNewUser ? user.password : undefined,
+    });
+  } catch (error: any) {
+    console.error('Google signup error:', error);
+    return res.status(500).json({ error: error.message || 'Signup failed' });
+  }
+}
+
+async function handleSignup(req: any, res: any) {
+  const { email, name, password } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    // Check if user exists
+    const gsResult = await callGoogleScript('getUser', { email });
+    const existingUser = gsResult?.data || authUsers.find(u => u.email === email);
+
+    if (existingUser) {
+      return res.status(409).json({ error: 'El email ya está registrado' });
+    }
+
+    const userId = `user_${Date.now()}`;
+    const newUser = {
+      id: userId,
+      email,
+      name: name || email.split('@')[0],
+      password,
+      verified: false,
+      verificationCode: Math.floor(100000 + Math.random() * 900000).toString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    authUsers.push(newUser);
+    await callGoogleScript('createUser', newUser);
+    await callGoogleScript('createUserFolder', { userId, email });
+
+    return res.json({
+      success: true,
+      user: newUser,
+      message: 'Usuario creado. Revisa tu email para verificar.',
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Signup failed' });
+  }
+}
+
+async function handleVerify(req: any, res: any) {
+  const { email, code } = req.body || {};
+
+  try {
+    const gsResult = await callGoogleScript('getUser', { email });
+    const user = gsResult?.data || authUsers.find(u => u.email === email);
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (user.verificationCode !== code) {
+      return res.status(400).json({ error: 'Código de verificación incorrecto' });
+    }
+
+    user.verified = true;
+    delete user.verificationCode;
+
+    await callGoogleScript('updateUser', user);
+
+    return res.json({
+      success: true,
+      user,
+      message: 'Email verificado exitosamente',
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Verification failed' });
+  }
+}
+
+async function handleResendVerification(req: any, res: any) {
+  const { email } = req.body || {};
+
+  try {
+    const gsResult = await callGoogleScript('getUser', { email });
+    const user = gsResult?.data || authUsers.find(u => u.email === email);
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (user.verified) {
+      return res.status(400).json({ error: 'El email ya está verificado' });
+    }
+
+    user.verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    await callGoogleScript('updateUser', user);
+
+    return res.json({
+      success: true,
+      message: 'Código de verificación reenviado',
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to resend verification' });
+  }
+}
+
+async function handleLogin(req: any, res: any) {
+  const { email, password } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email y password son requeridos' });
+  }
+
+  try {
+    const gsResult = await callGoogleScript('getUser', { email });
+    let user = gsResult?.data || null;
+
+    const memUser = authUsers.find(u => u.email === email);
+    if (memUser && !user) {
+      user = memUser;
+    }
+
+    if (!user) {
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
+    }
+
+    if (user.password !== password) {
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
+    }
+
+    if (!user.verified) {
+      return res.json({
+        success: true,
+        user,
+        needsVerification: true,
+      });
+    }
+
+    return res.json({
+      success: true,
+      user,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Login failed' });
+  }
+}
+
 // Generar password automático seguro
 function generateAutoPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
@@ -350,6 +594,14 @@ async function callGoogleScript(action: string, data?: any): Promise<any> {
     return null;
   }
 }
+
+// ============ AUTH ENDPOINTS ============
+app.post('/api/auth/google-login', handleGoogleLogin);
+app.post('/api/auth/google-signup', handleGoogleSignup);
+app.post('/api/auth/signup', handleSignup);
+app.post('/api/auth/verify', handleVerify);
+app.post('/api/auth/resend-verification', handleResendVerification);
+app.post('/api/auth/login', handleLogin);
 
 // ============ OLLAMA STATUS CHECK ============
 app.get('/api/ollama/status', async (_req, res) => {
